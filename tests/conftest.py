@@ -1,51 +1,25 @@
-"""Shared test fixtures with mock Amadeus API responses."""
+"""Shared test fixtures for the Voyager travel agent."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import os
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
 
-from flight_booking.amadeus_client import AmadeusFlightClient
-from flight_booking.models import CabinClass, Flight
+from flight_booking.amadeus_client import (
+    AmadeusFlightClient,
+    RawActivity,
+    RawFlight,
+    RawHotel,
+    RawHotelOffer,
+    RawPointOfInterest,
+)
+from flight_booking.tools import ToolExecutor
 
 
-def make_flight(
-    flight_number: str = "UA100",
-    airline: str = "United Airlines",
-    airline_code: str = "UA",
-    origin: str = "JFK",
-    destination: str = "LAX",
-    hour: int = 10,
-    duration_hours: float = 5.5,
-    price: float = 300.0,
-    currency: str = "USD",
-    cabin_class: CabinClass = CabinClass.ECONOMY,
-    stops: int = 0,
-    available_seats: int = 9,
-    layover_airports: list[str] | None = None,
-) -> Flight:
-    departure = datetime(2026, 6, 15, hour, 0)
-    arrival = departure + timedelta(hours=duration_hours)
-    return Flight(
-        flight_number=flight_number,
-        airline=airline,
-        airline_code=airline_code,
-        origin=origin,
-        destination=destination,
-        departure=departure,
-        arrival=arrival,
-        price=price,
-        currency=currency,
-        cabin_class=cabin_class,
-        stops=stops,
-        available_seats=available_seats,
-        layover_airports=layover_airports or [],
-    )
-
-
-# A realistic Amadeus API response for JFK -> LAX
+# Realistic Amadeus API response for parsing tests
 SAMPLE_AMADEUS_RESPONSE = {
     "data": [
         {
@@ -65,11 +39,6 @@ SAMPLE_AMADEUS_RESPONSE = {
                 }
             ],
             "price": {"grandTotal": "289.99", "currency": "USD"},
-            "travelerPricings": [
-                {
-                    "fareDetailsBySegment": [{"cabin": "ECONOMY"}]
-                }
-            ],
         },
         {
             "type": "flight-offer",
@@ -94,115 +63,139 @@ SAMPLE_AMADEUS_RESPONSE = {
                 }
             ],
             "price": {"grandTotal": "219.50", "currency": "USD"},
-            "travelerPricings": [
-                {
-                    "fareDetailsBySegment": [{"cabin": "ECONOMY"}, {"cabin": "ECONOMY"}]
-                }
-            ],
-        },
-        {
-            "type": "flight-offer",
-            "id": "3",
-            "numberOfBookableSeats": 7,
-            "itineraries": [
-                {
-                    "segments": [
-                        {
-                            "departure": {"iataCode": "JFK", "at": "2026-06-15T18:30:00"},
-                            "arrival": {"iataCode": "LAX", "at": "2026-06-15T22:00:00"},
-                            "carrierCode": "B6",
-                            "number": "300",
-                        }
-                    ]
-                }
-            ],
-            "price": {"grandTotal": "349.00", "currency": "USD"},
-            "travelerPricings": [
-                {
-                    "fareDetailsBySegment": [{"cabin": "ECONOMY"}]
-                }
-            ],
         },
     ],
     "dictionaries": {
-        "carriers": {
-            "UA": "UNITED AIRLINES",
-            "DL": "DELTA AIR LINES",
-            "B6": "JETBLUE AIRWAYS",
-        }
+        "carriers": {"UA": "UNITED AIRLINES", "DL": "DELTA AIR LINES"}
     },
-}
-
-SAMPLE_LOCATION_RESPONSE_SINGLE = {
-    "data": [
-        {
-            "iataCode": "JFK",
-            "name": "JOHN F KENNEDY INTL",
-            "subType": "AIRPORT",
-            "address": {"cityName": "NEW YORK", "countryCode": "US"},
-        }
-    ]
-}
-
-SAMPLE_LOCATION_RESPONSE_MULTI = {
-    "data": [
-        {
-            "iataCode": "LHR",
-            "name": "HEATHROW",
-            "subType": "AIRPORT",
-            "address": {"cityName": "LONDON", "countryCode": "GB"},
-        },
-        {
-            "iataCode": "LGW",
-            "name": "GATWICK",
-            "subType": "AIRPORT",
-            "address": {"cityName": "LONDON", "countryCode": "GB"},
-        },
-        {
-            "iataCode": "STN",
-            "name": "STANSTED",
-            "subType": "AIRPORT",
-            "address": {"cityName": "LONDON", "countryCode": "GB"},
-        },
-    ]
 }
 
 
 @pytest.fixture
-def mock_client():
-    """Return a mock AmadeusFlightClient whose API calls return sample data."""
+def mock_amadeus():
+    """Return a mocked AmadeusFlightClient."""
     client = MagicMock(spec=AmadeusFlightClient)
-
-    # Mock search_flights to return parsed Flight objects from sample data
-    def _search_flights(criteria):
-        from flight_booking.amadeus_client import AmadeusFlightClient as RealClient
-        real = object.__new__(RealClient)
-        carriers = SAMPLE_AMADEUS_RESPONSE["dictionaries"]["carriers"]
-        return real._parse_offers(SAMPLE_AMADEUS_RESPONSE["data"], carriers, criteria)
-
-    client.search_flights.side_effect = _search_flights
-
-    # Mock search_locations
-    def _search_locations(keyword):
-        kw = keyword.lower()
-        if "london" in kw:
-            data = SAMPLE_LOCATION_RESPONSE_MULTI["data"]
-        else:
-            data = SAMPLE_LOCATION_RESPONSE_SINGLE["data"]
-        results = []
-        for loc in data:
-            results.append({
-                "iata": loc.get("iataCode", ""),
-                "name": loc.get("name", ""),
-                "city": loc.get("address", {}).get("cityName", ""),
-                "country": loc.get("address", {}).get("countryCode", ""),
-                "type": loc.get("subType", ""),
-            })
-        return results
-
-    client.search_locations.side_effect = _search_locations
-
-    # Mock create_booking
-    client.create_booking.return_value = {"id": "MOCK12345"}
-
+    client.search_flights.return_value = []
+    client.search_hotels_by_city.return_value = []
+    client.search_hotel_offers.return_value = []
+    client.search_activities.return_value = []
+    client.search_pois.return_value = []
+    client.search_locations.return_value = []
+    client.get_city_coordinates.return_value = None
+    client.create_flight_booking.return_value = {"id": "API-123"}
     return client
+
+
+@pytest.fixture
+def executor(mock_amadeus, tmp_path):
+    """Return a ToolExecutor with a mocked client and temp output dir."""
+    ex = ToolExecutor(client=mock_amadeus)
+    ex.output_dir = str(tmp_path / "trip_documents")
+    os.makedirs(ex.output_dir, exist_ok=True)
+    return ex
+
+
+@pytest.fixture
+def sample_raw_flights():
+    """Return sample RawFlight objects."""
+    return [
+        RawFlight(
+            flight_number="AA100",
+            airline="American Airlines",
+            airline_code="AA",
+            origin="JFK",
+            destination="LAX",
+            departure=datetime(2026, 3, 15, 8, 0),
+            arrival=datetime(2026, 3, 15, 11, 30),
+            price=350.00,
+            currency="USD",
+            cabin_class="ECONOMY",
+            stops=0,
+            available_seats=5,
+            raw_offer={"price": {"grandTotal": "350.00"}},
+        ),
+        RawFlight(
+            flight_number="DL200",
+            airline="Delta Air Lines",
+            airline_code="DL",
+            origin="JFK",
+            destination="LAX",
+            departure=datetime(2026, 3, 15, 14, 0),
+            arrival=datetime(2026, 3, 15, 17, 45),
+            price=425.00,
+            currency="USD",
+            cabin_class="ECONOMY",
+            stops=1,
+            available_seats=3,
+            layover_airports=["ORD"],
+            raw_offer={"price": {"grandTotal": "425.00"}},
+        ),
+    ]
+
+
+@pytest.fixture
+def sample_raw_hotels():
+    """Return sample RawHotelOffer objects."""
+    hotel = RawHotel(
+        hotel_id="HTPAR001",
+        name="Hotel Le Marais",
+        chain_code="XX",
+        city_code="PAR",
+        latitude=48.8566,
+        longitude=2.3522,
+        address="FR",
+    )
+    return [hotel], [
+        RawHotelOffer(
+            offer_id="OFF-001",
+            hotel=hotel,
+            check_in="2026-04-10",
+            check_out="2026-04-14",
+            room_type="DOUBLE",
+            room_description="Deluxe Room with City View",
+            beds=1,
+            bed_type="DOUBLE",
+            board_type="BREAKFAST",
+            price=800.00,
+            currency="USD",
+            cancellation_info="Free cancellation before 2026-04-08",
+            raw_offer={"id": "OFF-001"},
+        ),
+    ]
+
+
+@pytest.fixture
+def sample_raw_activities():
+    return [
+        RawActivity(
+            activity_id="ACT-001",
+            name="Eiffel Tower Skip-the-Line",
+            description="Skip the long lines!",
+            price=45.00,
+            currency="USD",
+            rating="4.7",
+            booking_link="https://example.com/eiffel",
+        ),
+    ]
+
+
+@pytest.fixture
+def sample_raw_pois():
+    return [
+        RawPointOfInterest(
+            poi_id="POI-001",
+            name="Louvre Museum",
+            category="SIGHTS",
+            latitude=48.8606,
+            longitude=2.3376,
+            tags=["museum", "art", "landmark"],
+        ),
+    ]
+
+
+@pytest.fixture
+def sample_locations():
+    return [
+        {"iata": "JFK", "name": "JOHN F KENNEDY INTL", "city": "NEW YORK", "country": "US", "type": "AIRPORT"},
+        {"iata": "NYC", "name": "NEW YORK", "city": "NEW YORK", "country": "US", "type": "CITY"},
+    ]

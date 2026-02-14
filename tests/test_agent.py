@@ -1,278 +1,165 @@
-"""Tests for the conversational flight booking agent (with mocked API)."""
+"""Tests for the TravelAgent (Claude agentic loop).
 
-from flight_booking.agent import AgentState, FlightBookingAgent
+These tests mock the Anthropic client so no real API calls are made.
+They verify the tool-use loop, message management, and document retrieval.
+"""
 
+from __future__ import annotations
 
-class TestAgentGreeting:
-    def test_greet_sets_state(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        assert agent.state == AgentState.COLLECTING_ORIGIN
+import json
+import os
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
-    def test_greet_returns_message(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        msg = agent.greet()
-        assert "welcome" in msg.lower()
-        assert "where" in msg.lower()
-
-
-class TestAgentOrigin:
-    def test_valid_origin_by_code(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        response = agent.process_input("JFK")
-        assert agent.state == AgentState.COLLECTING_DESTINATION
-        assert "JFK" in response
-
-    def test_valid_origin_by_city_single_match(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        response = agent.process_input("New York")
-        # Single match -> goes straight to destination
-        assert agent.state == AgentState.COLLECTING_DESTINATION
-
-    def test_origin_multi_match_disambiguation(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        response = agent.process_input("London")
-        # Multiple matches -> disambiguation
-        assert agent.state == AgentState.DISAMBIGUATING_ORIGIN
-        assert "LHR" in response
-        assert "LGW" in response
-
-    def test_disambiguate_origin(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("London")
-        response = agent.process_input("1")  # pick LHR
-        assert agent.state == AgentState.COLLECTING_DESTINATION
-        assert agent.criteria.origin == "LHR"
-
-    def test_invalid_origin(self, mock_client):
-        mock_client.search_locations.side_effect = lambda kw: []
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        response = agent.process_input("Atlantis")
-        assert agent.state == AgentState.COLLECTING_ORIGIN
-        assert "couldn't find" in response.lower()
+from flight_booking.agent import MODEL, SYSTEM_PROMPT, TravelAgent
+from flight_booking.tools import ToolExecutor
 
 
-class TestAgentDestination:
-    def test_valid_destination(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        response = agent.process_input("LAX")
-        assert agent.state == AgentState.COLLECTING_DATES
+class TestTravelAgentInit:
+    def test_default_init(self):
+        with patch("flight_booking.agent.anthropic"):
+            agent = TravelAgent()
+            assert agent.messages == []
+            assert isinstance(agent.executor, ToolExecutor)
 
-    def test_same_as_origin(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        response = agent.process_input("JFK")
-        assert agent.state == AgentState.COLLECTING_DESTINATION
-        assert "same" in response.lower()
+    def test_custom_executor(self):
+        with patch("flight_booking.agent.anthropic"):
+            ex = MagicMock(spec=ToolExecutor)
+            agent = TravelAgent(executor=ex)
+            assert agent.executor is ex
 
 
-class TestAgentDates:
-    def _setup_to_dates(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        return agent
+class TestSystemPrompt:
+    def test_prompt_contains_personality(self):
+        assert "Voyager" in SYSTEM_PROMPT
+        assert "travel agent" in SYSTEM_PROMPT.lower()
 
-    def test_valid_departure_date(self, mock_client):
-        agent = self._setup_to_dates(mock_client)
-        response = agent.process_input("2026-06-15")
-        assert agent.state == AgentState.COLLECTING_RETURN_DATE
+    def test_prompt_forbids_price_disclosure(self):
+        assert "NEVER mention markups" in SYSTEM_PROMPT
 
-    def test_invalid_date(self, mock_client):
-        agent = self._setup_to_dates(mock_client)
-        response = agent.process_input("not a date")
-        assert agent.state == AgentState.COLLECTING_DATES
-
-    def test_one_way(self, mock_client):
-        agent = self._setup_to_dates(mock_client)
-        agent.process_input("2026-06-15")
-        response = agent.process_input("one way")
-        assert agent.state == AgentState.COLLECTING_PASSENGERS
-
-    def test_return_date(self, mock_client):
-        agent = self._setup_to_dates(mock_client)
-        agent.process_input("2026-06-15")
-        response = agent.process_input("2026-06-22")
-        assert agent.state == AgentState.COLLECTING_PASSENGERS
+    def test_prompt_mentions_tools(self):
+        assert "resolve_location" in SYSTEM_PROMPT
 
 
-class TestAgentPassengersAndCabin:
-    def _setup_to_passengers(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        agent.process_input("2026-06-15")
-        agent.process_input("one way")
-        return agent
+class TestChatSync:
+    def _make_text_response(self, text: str):
+        """Create a mock API response with just a text block."""
+        block = SimpleNamespace(type="text", text=text)
+        block.model_dump = lambda: {"type": "text", "text": text}
+        return SimpleNamespace(content=[block], stop_reason="end_turn")
 
-    def test_valid_passengers(self, mock_client):
-        agent = self._setup_to_passengers(mock_client)
-        agent.process_input("2")
-        assert agent.state == AgentState.COLLECTING_CABIN_CLASS
-        assert agent.criteria.passengers == 2
+    def _make_tool_then_text(self, tool_name, tool_input, final_text):
+        """Create two responses: first with tool_use, second with text."""
+        tool_block = SimpleNamespace(
+            type="tool_use", id="call_123", name=tool_name, input=tool_input,
+        )
+        tool_block.model_dump = lambda: {
+            "type": "tool_use", "id": "call_123",
+            "name": tool_name, "input": tool_input,
+        }
+        tool_response = SimpleNamespace(content=[tool_block], stop_reason="tool_use")
 
-    def test_invalid_passengers(self, mock_client):
-        agent = self._setup_to_passengers(mock_client)
-        agent.process_input("0")
-        assert agent.state == AgentState.COLLECTING_PASSENGERS
+        text_block = SimpleNamespace(type="text", text=final_text)
+        text_block.model_dump = lambda: {"type": "text", "text": final_text}
+        text_response = SimpleNamespace(content=[text_block], stop_reason="end_turn")
 
-    def test_cabin_class_economy(self, mock_client):
-        agent = self._setup_to_passengers(mock_client)
-        agent.process_input("1")
-        agent.process_input("1")
-        assert agent.state == AgentState.COLLECTING_PREFERENCES
+        return [tool_response, text_response]
 
-    def test_cabin_class_business(self, mock_client):
-        agent = self._setup_to_passengers(mock_client)
-        agent.process_input("1")
-        agent.process_input("business")
-        assert agent.state == AgentState.COLLECTING_PREFERENCES
+    @patch("flight_booking.agent.anthropic")
+    def test_simple_text_response(self, mock_anthropic):
+        agent = TravelAgent()
+        mock_client = MagicMock()
+        agent.client = mock_client
 
+        mock_client.messages.create.return_value = self._make_text_response("Hello, traveler!")
 
-class TestAgentPreferences:
-    def _setup_to_prefs(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        agent.process_input("2026-06-15")
-        agent.process_input("one way")
-        agent.process_input("1")
-        agent.process_input("1")
-        return agent
+        result = agent.chat_sync("Hi")
 
-    def test_no_preferences_triggers_search(self, mock_client):
-        agent = self._setup_to_prefs(mock_client)
-        response = agent.process_input("no")
-        assert agent.state == AgentState.SELECTING_OUTBOUND
-        assert "found" in response.lower()
+        assert result == "Hello, traveler!"
+        assert len(agent.messages) == 2  # user + assistant
+        assert agent.messages[0]["role"] == "user"
+        assert agent.messages[1]["role"] == "assistant"
 
-    def test_preferences_parsed(self, mock_client):
-        agent = self._setup_to_prefs(mock_client)
-        agent.process_input("$400 non-stop morning delta")
-        assert agent.criteria.max_price == 400
-        assert agent.criteria.max_stops == 0
-        assert agent.criteria.preferred_time == "morning"
-        assert agent.criteria.preferred_airline == "Delta Air Lines"
+    @patch("flight_booking.agent.anthropic")
+    def test_tool_use_loop(self, mock_anthropic):
+        executor = MagicMock(spec=ToolExecutor)
+        executor.execute.return_value = json.dumps({"locations": [{"iata": "JFK"}]})
 
+        agent = TravelAgent(executor=executor)
+        mock_client = MagicMock()
+        agent.client = mock_client
 
-class TestAgentGlobalCommands:
-    def test_quit(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("quit")
-        assert agent.state == AgentState.COMPLETED
+        responses = self._make_tool_then_text(
+            "resolve_location", {"keyword": "New York"},
+            "JFK is John F. Kennedy International Airport!",
+        )
+        mock_client.messages.create.side_effect = responses
 
-    def test_restart(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        response = agent.process_input("restart")
-        assert agent.state == AgentState.COLLECTING_ORIGIN
-        assert "welcome" in response.lower()
+        result = agent.chat_sync("Where is New York?")
 
-    def test_help(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        response = agent.process_input("help")
-        assert "help" in response.lower()
-        assert "amadeus" in response.lower()
+        assert "JFK" in result
+        executor.execute.assert_called_once_with("resolve_location", {"keyword": "New York"})
+        # Messages: user, assistant (tool_use), user (tool_result), assistant (text)
+        assert len(agent.messages) == 4
 
-    def test_empty_input(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        response = agent.process_input("")
-        assert "didn't catch" in response.lower()
+    @patch("flight_booking.agent.anthropic")
+    def test_multiple_messages_accumulate(self, mock_anthropic):
+        agent = TravelAgent()
+        mock_client = MagicMock()
+        agent.client = mock_client
+
+        mock_client.messages.create.side_effect = [
+            self._make_text_response("Response 1"),
+            self._make_text_response("Response 2"),
+        ]
+
+        agent.chat_sync("Message 1")
+        agent.chat_sync("Message 2")
+
+        assert len(agent.messages) == 4  # 2 user + 2 assistant
 
 
-class TestAgentFullBookingFlow:
-    def test_one_way_booking(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        agent.process_input("2026-06-15")
-        agent.process_input("one way")
-        agent.process_input("1")
-        agent.process_input("economy")
-        response = agent.process_input("no")
+class TestGetDocuments:
+    @patch("flight_booking.agent.anthropic")
+    def test_get_documents_empty(self, mock_anthropic):
+        agent = TravelAgent()
+        agent.executor.output_dir = "/nonexistent"
+        assert agent.get_documents() == []
 
-        assert agent.state == AgentState.SELECTING_OUTBOUND
-        assert len(agent.outbound_flights) == 3
+    @patch("flight_booking.agent.anthropic")
+    def test_get_documents_with_files(self, mock_anthropic, tmp_path):
+        agent = TravelAgent()
+        agent.executor.output_dir = str(tmp_path)
 
-        # Select first flight
-        agent.process_input("1")
-        assert agent.state == AgentState.COLLECTING_PASSENGER_INFO
+        (tmp_path / "ticket_VYG-001.txt").write_text("ticket content")
+        (tmp_path / "voucher_VYG-002.txt").write_text("voucher content")
+        (tmp_path / "trip_plan_paris.md").write_text("# Paris Plan")
 
-        agent.process_input("John Doe")
-        assert agent.state == AgentState.COLLECTING_EMAIL
+        docs = agent.get_documents()
+        assert len(docs) == 3
+        types = {d["type"] for d in docs}
+        assert types == {"ticket", "voucher", "presentation"}
 
-        agent.process_input("john@example.com")
-        assert agent.state == AgentState.CONFIRMING_BOOKING
 
-        response = agent.process_input("yes")
-        assert agent.state == AgentState.COMPLETED
-        assert agent.booking.confirmed is True
-        assert "booking" in response.lower()
+class TestGetBookings:
+    @patch("flight_booking.agent.anthropic")
+    def test_get_bookings_empty(self, mock_anthropic):
+        agent = TravelAgent()
+        assert agent.get_bookings() == []
 
-    def test_sort_commands(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        agent.process_input("2026-06-15")
-        agent.process_input("one way")
-        agent.process_input("1")
-        agent.process_input("economy")
-        agent.process_input("no")
+    @patch("flight_booking.agent.anthropic")
+    def test_get_bookings_exposes_markup_only(self, mock_anthropic):
+        from flight_booking.models import BookingRecord
+        agent = TravelAgent()
+        agent.executor.bookings = [
+            BookingRecord(
+                booking_id="VYG-F-001", booking_type="flight",
+                traveler_name="John", traveler_email="j@x.com",
+                markup_price=385.0, actual_price=350.0, currency="USD",
+            ),
+        ]
 
-        response = agent.process_input("sort price")
-        assert "sorted" in response.lower()
-
-        response = agent.process_input("sort duration")
-        assert "sorted" in response.lower()
-
-    def test_round_trip_booking(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        agent.process_input("2026-06-15")
-        agent.process_input("2026-06-22")
-        agent.process_input("1")
-        agent.process_input("economy")
-        response = agent.process_input("no")
-
-        assert agent.state == AgentState.SELECTING_OUTBOUND
-
-        # Select first flight -- round trip goes straight to passenger info
-        response = agent.process_input("1")
-        assert agent.state == AgentState.COLLECTING_PASSENGER_INFO
-        assert "round-trip" in response.lower()
-
-    def test_cancel_booking(self, mock_client):
-        agent = FlightBookingAgent(mock_client)
-        agent.greet()
-        agent.process_input("JFK")
-        agent.process_input("LAX")
-        agent.process_input("2026-06-15")
-        agent.process_input("one way")
-        agent.process_input("1")
-        agent.process_input("economy")
-        agent.process_input("no")
-        agent.process_input("1")
-        agent.process_input("Jane Doe")
-        agent.process_input("jane@example.com")
-        response = agent.process_input("no")
-        assert agent.state == AgentState.COMPLETED
-        assert "cancelled" in response.lower()
+        bookings = agent.get_bookings()
+        assert len(bookings) == 1
+        assert bookings[0]["price"] == 385.0
+        assert "actual_price" not in bookings[0]
