@@ -1,3 +1,16 @@
+# Direct dependencies
 fastapi==0.115.6
 uvicorn==0.34.0
 pydantic[email]==2.10.4
+
+# Transitive dependencies (pinned for reproducible builds)
+annotated-types==0.7.0
+anyio==4.12.1
+click==8.3.1
+dnspython==2.8.0
+email-validator==2.3.0
+h11==0.16.0
+idna==3.11
+pydantic-core==2.27.2
+starlette==0.41.3
+typing_extensions==4.15.0

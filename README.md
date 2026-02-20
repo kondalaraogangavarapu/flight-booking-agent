@@ -25,8 +25,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 Build and run:
 
 ```bash
-docker build -t flight-booking-agent:0.1.0 .
-docker run -p 8000:8000 -e SECRET_KEY=<your-secret> flight-booking-agent:0.1.0
+docker build -t flight-booking-agent:0.2.0 .
+docker run -p 8000:8000 -e SECRET_KEY=<your-secret> flight-booking-agent:0.2.0
 ```
 
 ## Configuration
@@ -38,7 +38,7 @@ All configuration is via environment variables:
 | `APP_HOST` | `0.0.0.0` | Bind address |
 | `APP_PORT` | `8000` | Bind port |
 | `LOG_LEVEL` | `info` | Logging level |
-| `SECRET_KEY` | *(empty)* | Application secret key (required in production) |
+| `SECRET_KEY` | *(auto-generated)* | Application secret key (**must be set in production**) |
 
 ## Example Usage
 
