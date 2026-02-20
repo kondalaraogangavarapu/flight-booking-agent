@@ -7,7 +7,7 @@ class Settings:
     """Application settings loaded from environment variables."""
 
     APP_NAME: str = "Flight Booking Agent"
-    APP_VERSION: str = "0.4.0"
+    APP_VERSION: str = "0.4.1"
     HOST: str = os.getenv("APP_HOST", "127.0.0.1")
     PORT: int = int(os.getenv("APP_PORT", "8000"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
