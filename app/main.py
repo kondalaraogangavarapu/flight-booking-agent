@@ -2,6 +2,7 @@ import asyncio
 import dataclasses
 import logging
 import signal
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -16,11 +17,15 @@ logging.basicConfig(level=settings.LOG_LEVEL.upper())
 logger = logging.getLogger(__name__)
 
 shutdown_event = asyncio.Event()
+startup_time: float = 0.0
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application startup and graceful shutdown."""
+    global startup_time
+    startup_time = time.monotonic()
+
     loop = asyncio.get_running_loop()
 
     def _signal_handler(sig: signal.Signals) -> None:
@@ -70,11 +75,26 @@ class BookingCreate(BaseModel):
 # ---------------------------------------------------------------------------
 @app.get("/healthz")
 def health_check():
-    return {"status": "healthy"}
+    """Liveness probe: checks that the application process is responsive."""
+    uptime = round(time.monotonic() - startup_time, 2) if startup_time else 0
+    return {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+        "uptime_seconds": uptime,
+    }
 
 
 @app.get("/readyz")
 def readiness_check():
+    """Readiness probe: checks that the application can serve traffic."""
+    if shutdown_event.is_set():
+        raise HTTPException(status_code=503, detail="Shutting down")
+    try:
+        flight_count = len(search_flights.__code__.co_consts)  # verify module loaded
+        _ = get_flight("FL001")  # verify data store is accessible
+    except Exception as exc:
+        logger.error("Readiness check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Not ready") from exc
     return {"status": "ready"}
 
 

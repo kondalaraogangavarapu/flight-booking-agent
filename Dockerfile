@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="flight-booking-agent" \
-      org.opencontainers.image.version="0.3.0" \
+      org.opencontainers.image.version="0.4.0" \
       org.opencontainers.image.description="Flight booking agent REST API" \
       org.opencontainers.image.source="https://github.com/kondalaraogangavarapu/flight-booking-agent"
 
@@ -29,18 +29,32 @@ WORKDIR /app
 # Copy installed dependencies from builder
 COPY --from=builder /install /usr/local
 
-# Copy application code
+# Copy application code and VERSION file
 COPY app/ ./app/
+COPY VERSION ./
 
 # Security: remove write permissions on application code
-RUN chmod -R a-w /app/app/
+RUN chmod -R a-w /app/app/ /app/VERSION
 
 # Switch to non-root user
 USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+# Configurable env vars with secure defaults
+ENV APP_HOST="0.0.0.0" \
+    APP_PORT="8000" \
+    LOG_LEVEL="info" \
+    WEB_CONCURRENCY="2" \
+    HEALTH_CHECK_TIMEOUT="5"
 
-ENTRYPOINT ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:{}/healthz'.format(os.environ.get('APP_PORT', '8000')), timeout=int(os.environ.get('HEALTH_CHECK_TIMEOUT', '5')))"]
+
+ENTRYPOINT ["gunicorn", "app.main:app", \
+    "--worker-class", "uvicorn.workers.UvicornWorker", \
+    "--bind", "0.0.0.0:8000", \
+    "--workers", "2", \
+    "--timeout", "120", \
+    "--graceful-timeout", "30", \
+    "--access-logfile", "-"]

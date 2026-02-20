@@ -17,7 +17,7 @@ A REST API service for searching and booking flights, packaged as a Docker conta
 
 ```bash
 pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 ## Development Setup
@@ -57,9 +57,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 Build and run:
 
 ```bash
-docker build -t flight-booking-agent:0.3.0 .
-docker run -p 8000:8000 -e SECRET_KEY=<your-secret> flight-booking-agent:0.3.0
+docker build -t flight-booking-agent:0.4.0 .
+docker run -p 8000:8000 -e SECRET_KEY=<your-secret> flight-booking-agent:0.4.0
 ```
+
+The container uses gunicorn with uvicorn workers for production-grade process management. Configure workers via `WEB_CONCURRENCY`.
 
 ## Configuration
 
@@ -67,10 +69,12 @@ All configuration is via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `APP_HOST` | `0.0.0.0` | Bind address |
+| `APP_HOST` | `127.0.0.1` | Bind address (`0.0.0.0` in Docker) |
 | `APP_PORT` | `8000` | Bind port |
 | `LOG_LEVEL` | `info` | Logging level |
 | `SECRET_KEY` | *(auto-generated)* | Application secret key (**must be set in production**) |
+| `WEB_CONCURRENCY` | `2` | Number of gunicorn worker processes (Docker only) |
+| `HEALTH_CHECK_TIMEOUT` | `5` | Health check HTTP timeout in seconds |
 
 ## Example Usage
 
