@@ -1,6 +1,9 @@
+import asyncio
 import dataclasses
 import logging
+import signal
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
@@ -12,11 +15,32 @@ from app.flights import get_flight, search_flights
 logging.basicConfig(level=settings.LOG_LEVEL.upper())
 logger = logging.getLogger(__name__)
 
+shutdown_event = asyncio.Event()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application startup and graceful shutdown."""
+    loop = asyncio.get_running_loop()
+
+    def _signal_handler(sig: signal.Signals) -> None:
+        logger.info("Received %s, initiating graceful shutdown...", sig.name)
+        shutdown_event.set()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, _signal_handler, sig)
+
+    logger.info("Application startup complete")
+    yield
+    logger.info("Application shutdown complete")
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------

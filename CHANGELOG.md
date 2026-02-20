@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-20
+
+### Added
+- Graceful shutdown handling via SIGTERM/SIGINT signal handlers using FastAPI lifespan
+- `pyproject.toml` with `requires-python = ">=3.12"` for Python version pinning
+- Development setup instructions in README.md
+- Git tag `v0.1.0` for initial release version tracking
+
+### Changed
+- Application version bumped to 0.3.0
+
 ## [0.2.0] - 2026-02-20
 
 ### Security
