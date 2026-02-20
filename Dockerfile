@@ -3,10 +3,10 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-# Install dependencies into an isolated virtual environment
-RUN python -m venv /build/venv
+# Install dependencies into a virtual environment at the same path used at runtime
+RUN python -m venv /app/venv
 COPY requirements.txt .
-RUN /build/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN /app/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # ---- Runtime stage ----
 FROM python:3.12-slim
@@ -33,7 +33,7 @@ RUN groupadd --gid 1000 appuser && \
 WORKDIR /app
 
 # Copy virtual environment from builder with correct ownership
-COPY --from=builder --chown=appuser:appuser /build/venv /app/venv
+COPY --from=builder --chown=appuser:appuser /app/venv /app/venv
 
 # Copy application code, entrypoint, and VERSION file
 COPY --chown=appuser:appuser app/ ./app/
