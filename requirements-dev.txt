@@ -1,0 +1,29 @@
+# Development and testing dependencies
+-r requirements.txt
+
+# Testing
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-asyncio==0.24.0
+httpx==0.28.1
+
+# Linting and formatting
+black==24.10.0
+flake8==7.1.1
+mypy==1.13.0
+
+# Transitive dev dependencies (pinned for reproducible dev environments)
+certifi==2024.12.14
+coverage==7.6.10
+exceptiongroup==1.2.2
+httpcore==1.0.7
+iniconfig==2.0.0
+mccabe==0.7.0
+mypy-extensions==1.0.0
+packaging==24.2
+pathspec==0.12.1
+platformdirs==4.3.6
+pluggy==1.5.0
+pycodestyle==2.12.1
+pyflakes==3.2.0
+tomli==2.2.1
