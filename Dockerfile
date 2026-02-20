@@ -3,14 +3,20 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
+# Install dependencies into an isolated virtual environment
+RUN python -m venv /build/venv
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN /build/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # ---- Runtime stage ----
 FROM python:3.12-slim
 
+# Version is read from the VERSION file at runtime by the app;
+# pass --build-arg APP_VERSION=x.y.z to set the image label, or omit for "dev".
+ARG APP_VERSION=dev
+
 LABEL org.opencontainers.image.title="flight-booking-agent" \
-      org.opencontainers.image.version="0.5.0" \
+      org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.description="Flight booking agent REST API with conversational AI" \
       org.opencontainers.image.source="https://github.com/kondalaraogangavarapu/flight-booking-agent"
 
@@ -26,13 +32,13 @@ RUN groupadd --gid 1000 appuser && \
 
 WORKDIR /app
 
-# Copy installed dependencies from builder
-COPY --from=builder /install /usr/local
+# Copy virtual environment from builder with correct ownership
+COPY --from=builder --chown=appuser:appuser /build/venv /app/venv
 
 # Copy application code, entrypoint, and VERSION file
-COPY app/ ./app/
-COPY VERSION ./
-COPY entrypoint.sh ./
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser VERSION ./
+COPY --chown=appuser:appuser entrypoint.sh ./
 
 # Security: remove write permissions on application code, make entrypoint executable
 RUN chmod -R a-w /app/app/ /app/VERSION && \
@@ -40,6 +46,10 @@ RUN chmod -R a-w /app/app/ /app/VERSION && \
 
 # Switch to non-root user
 USER appuser
+
+# Put venv on PATH so gunicorn/uvicorn are found
+ENV PATH="/app/venv/bin:$PATH" \
+    VIRTUAL_ENV="/app/venv"
 
 EXPOSE 8000
 

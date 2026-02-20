@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.config import settings
-from app.flights import get_flight, search_flights
+from app.flights import SAMPLE_FLIGHTS, get_flight, search_flights
 from app.models import AgentMessage, AgentResponse
 
 logging.basicConfig(level=settings.LOG_LEVEL.upper())
@@ -91,7 +91,8 @@ def readiness_check():
     if shutdown_event.is_set():
         raise HTTPException(status_code=503, detail="Shutting down")
     try:
-        flight_count = len(search_flights.__code__.co_consts)  # verify module loaded
+        if not SAMPLE_FLIGHTS:
+            raise RuntimeError("Flight data store is empty")
         _ = get_flight("FL001")  # verify data store is accessible
     except Exception as exc:
         logger.error("Readiness check failed: %s", exc)

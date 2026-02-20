@@ -1,13 +1,23 @@
 import os
 import secrets
 import warnings
+from pathlib import Path
+
+
+def _read_version() -> str:
+    """Read version from the VERSION file (single source of truth)."""
+    version_file = Path(__file__).resolve().parent.parent / "VERSION"
+    try:
+        return version_file.read_text().strip()
+    except FileNotFoundError:
+        return "0.0.0"
 
 
 class Settings:
     """Application settings loaded from environment variables."""
 
     APP_NAME: str = "Flight Booking Agent"
-    APP_VERSION: str = "0.5.0"
+    APP_VERSION: str = _read_version()
     HOST: str = os.getenv("APP_HOST", "127.0.0.1")
     PORT: int = int(os.getenv("APP_PORT", "8000"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
