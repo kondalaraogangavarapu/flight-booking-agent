@@ -58,11 +58,11 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 Build and run:
 
 ```bash
-docker build -t flight-booking-agent:0.5.0 .
+docker build -t flight-booking-agent:latest .
 docker run -p 8000:8000 \
   -e SECRET_KEY=<your-secret> \
   -e ANTHROPIC_API_KEY=<your-key> \
-  flight-booking-agent:0.5.0
+  flight-booking-agent:latest
 ```
 
 The container uses gunicorn with uvicorn workers for production-grade process management. Configure workers via `WEB_CONCURRENCY`.

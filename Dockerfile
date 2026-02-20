@@ -1,15 +1,15 @@
 # ---- Build stage ----
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:9e01bf1ae5db7649a236da7be1e94ffbbbdd7a93f867dd0d8d5720d9e1f89fab AS builder
 
 WORKDIR /build
 
 # Install dependencies into a virtual environment at the same path used at runtime
 RUN python -m venv /app/venv
 COPY requirements.txt .
-RUN /app/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN /app/venv/bin/pip install --no-cache-dir --require-hashes -r requirements.txt
 
 # ---- Runtime stage ----
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:9e01bf1ae5db7649a236da7be1e94ffbbbdd7a93f867dd0d8d5720d9e1f89fab
 
 # Version is read from the VERSION file at runtime by the app;
 # pass --build-arg APP_VERSION=x.y.z to set the image label, or omit for "dev".
@@ -39,9 +39,10 @@ COPY --from=builder --chown=appuser:appuser /app/venv /app/venv
 COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser VERSION ./
 COPY --chown=appuser:appuser entrypoint.sh ./
+COPY --chown=appuser:appuser healthcheck.py ./
 
 # Security: remove write permissions on application code, make entrypoint executable
-RUN chmod -R a-w /app/app/ /app/VERSION && \
+RUN chmod -R a-w /app/app/ /app/VERSION /app/healthcheck.py && \
     chmod +x /app/entrypoint.sh
 
 # Switch to non-root user
@@ -61,6 +62,6 @@ ENV APP_HOST="0.0.0.0" \
     HEALTH_CHECK_TIMEOUT="5"
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD ["python", "-c", "import os, urllib.request; host = os.environ.get('APP_HOST', '0.0.0.0'); host = '127.0.0.1' if host == '0.0.0.0' else host; urllib.request.urlopen('http://{}:{}/healthz'.format(host, os.environ.get('APP_PORT', '8000')), timeout=int(os.environ.get('HEALTH_CHECK_TIMEOUT', '5')))"]
+    CMD ["python", "/app/healthcheck.py"]
 
 ENTRYPOINT ["/app/entrypoint.sh"]

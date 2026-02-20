@@ -106,6 +106,12 @@ def handle_message(message: str) -> AgentResponse:
         reply_text = response.content[0].text
         return AgentResponse(reply=reply_text, actions_taken=["llm_response"])
 
-    except Exception:
-        logger.exception("LLM call failed; falling back to keyword parser.")
+    except ImportError:
+        logger.exception("Failed to import anthropic SDK; falling back to keyword parser.")
+        return _parse_with_keywords(message)
+    except anthropic.APIConnectionError:
+        logger.exception("Could not connect to Anthropic API; falling back to keyword parser.")
+        return _parse_with_keywords(message)
+    except anthropic.APIStatusError:
+        logger.exception("Anthropic API returned an error; falling back to keyword parser.")
         return _parse_with_keywords(message)

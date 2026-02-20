@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-02-20
+
+### Changed
+- Docker base image (`python:3.12-slim`) pinned to SHA256 digest for fully reproducible builds
+- Docker HEALTHCHECK refactored from inline Python one-liner to a dedicated `healthcheck.py` script for clarity and maintainability
+- Broad `except Exception` in LLM agent replaced with specific `ImportError`, `anthropic.APIConnectionError`, and `anthropic.APIStatusError` handlers to avoid masking misconfigurations
+- All dependencies in `requirements.txt` now include `--require-hashes` integrity hashes (via `pip-compile --generate-hashes`) for supply chain security
+- README Docker example updated to use `latest` tag instead of stale version reference
+
+### Added
+- `healthcheck.py` — standalone health check script used by Docker HEALTHCHECK
+- `certifi` and `packaging` added as explicit transitive dependencies (previously implicit)
+
 ## [0.6.0] - 2026-02-20
 
 ### Changed
