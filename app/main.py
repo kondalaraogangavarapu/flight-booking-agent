@@ -12,6 +12,7 @@ from pydantic import BaseModel, EmailStr
 
 from app.config import settings
 from app.flights import get_flight, search_flights
+from app.models import AgentMessage, AgentResponse
 
 logging.basicConfig(level=settings.LOG_LEVEL.upper())
 logger = logging.getLogger(__name__)
@@ -151,3 +152,14 @@ def get_booking(booking_id: str):
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
     return booking
+
+
+# ---------------------------------------------------------------------------
+# Conversational agent
+# ---------------------------------------------------------------------------
+@app.post("/api/v1/agent", response_model=AgentResponse, tags=["agent"])
+def agent_chat(body: AgentMessage):
+    """Send a natural-language message to the flight booking agent."""
+    from app.agent import handle_message
+
+    return handle_message(body.message)

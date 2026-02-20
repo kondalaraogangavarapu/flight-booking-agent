@@ -1,9 +1,16 @@
+"""Data models for the flight booking agent."""
+
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Optional
 import uuid
 
+from pydantic import BaseModel, Field
 
+
+# ---------------------------------------------------------------------------
+# Core domain models (dataclass-based, used by the flight/booking store)
+# ---------------------------------------------------------------------------
 @dataclass
 class Flight:
     flight_id: str
@@ -46,3 +53,15 @@ class SearchRequest:
     destination: str
     departure_date: str
     passengers: int = 1
+
+
+# ---------------------------------------------------------------------------
+# Agent-specific models (Pydantic, used by the /agent chat endpoint)
+# ---------------------------------------------------------------------------
+class AgentMessage(BaseModel):
+    message: str = Field(..., min_length=1, description="User message to the agent")
+
+
+class AgentResponse(BaseModel):
+    reply: str
+    actions_taken: list[str] = []

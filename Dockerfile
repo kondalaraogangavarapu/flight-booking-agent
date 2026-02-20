@@ -10,8 +10,8 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="flight-booking-agent" \
-      org.opencontainers.image.version="0.4.1" \
-      org.opencontainers.image.description="Flight booking agent REST API" \
+      org.opencontainers.image.version="0.5.0" \
+      org.opencontainers.image.description="Flight booking agent REST API with conversational AI" \
       org.opencontainers.image.source="https://github.com/kondalaraogangavarapu/flight-booking-agent"
 
 # Security: install upgrades and remove unnecessary packages

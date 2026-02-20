@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-02-20
+
+### Added
+- Conversational AI agent endpoint (`POST /api/v1/agent`) powered by Claude via the Anthropic SDK
+- Keyword-based fallback agent when no `ANTHROPIC_API_KEY` is configured
+- `anthropic==0.42.0` dependency for LLM integration
+- `ANTHROPIC_API_KEY` environment variable support
+- `.env.example` documenting all configuration variables
+- `.gitignore` for clean repository hygiene
+
+### Changed
+- Version bumped to 0.5.0 (minor release – new feature, no breaking changes)
+- README updated with agent endpoint documentation and example usage
+- Docker image label updated to reflect conversational AI capability
+
 ## [0.4.0] - 2026-02-20
 
 ### Changed

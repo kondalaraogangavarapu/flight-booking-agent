@@ -1,5 +1,6 @@
 .git
 .gitignore
+.dockerignore
 *.md
 __pycache__
 *.pyc
@@ -10,6 +11,7 @@ __pycache__
 venv
 .mypy_cache
 .pytest_cache
+.ruff_cache
 .coverage
 htmlcov
 dist
@@ -17,5 +19,4 @@ build
 *.egg-info
 requirements-dev.txt
 Dockerfile
-.dockerignore
 tests/

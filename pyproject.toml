@@ -1,7 +1,7 @@
 [project]
 name = "flight-booking-agent"
-version = "0.4.0"
-description = "Flight booking agent REST API"
+version = "0.5.0"
+description = "Flight booking agent REST API with conversational AI"
 requires-python = ">=3.12"
 license = "MIT"
 
