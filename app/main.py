@@ -1,5 +1,6 @@
 """Flight Booking Agent API."""
 
+import time
 import uuid
 
 from fastapi import FastAPI, HTTPException
@@ -23,10 +24,20 @@ app = FastAPI(
 # In-memory booking store
 bookings: dict[str, Booking] = {}
 
+_start_time = time.monotonic()
+
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    uptime_seconds = round(time.monotonic() - _start_time, 2)
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "uptime_seconds": uptime_seconds,
+        "checks": {
+            "bookings_store": "ok",
+        },
+    }
 
 
 @app.post("/flights/search", response_model=list[Flight])

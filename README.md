@@ -42,3 +42,16 @@ docker run -p 9000:9000 -e PORT=9000 -e LOG_LEVEL=debug flight-booking-agent
 ```
 
 The API docs are available at `http://localhost:8000/docs`.
+
+## Security
+
+Dependency vulnerabilities are scanned automatically in CI using [pip-audit](https://github.com/pypa/pip-audit). To run locally:
+
+```bash
+pip install pip-audit
+pip-audit -r requirements.txt
+```
+
+## Versioning
+
+The current version is defined in `VERSION`. See [CHANGELOG.md](CHANGELOG.md) for release history.

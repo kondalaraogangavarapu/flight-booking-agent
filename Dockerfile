@@ -1,8 +1,9 @@
-# Build stage
+# Build stage — install dependencies separately for layer caching
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
+# Copy only requirements first to cache dependency installation
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
@@ -14,10 +15,13 @@ WORKDIR /app
 # Create non-root user
 RUN groupadd --system appuser && useradd --system --gid appuser appuser
 
-# Copy installed dependencies from builder
+# Copy installed dependencies from builder (changes least often)
 COPY --from=builder /install /usr/local
 
+# Copy version file (changes on release)
 COPY VERSION .
+
+# Copy application code last (changes most often)
 COPY app/ ./app/
 
 # Switch to non-root user
