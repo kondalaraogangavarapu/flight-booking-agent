@@ -27,4 +27,18 @@ docker build -t flight-booking-agent .
 docker run -p 8000:8000 flight-booking-agent
 ```
 
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `8000` | Listen port |
+| `LOG_LEVEL` | `info` | Uvicorn log level (debug, info, warning, error) |
+
+Example with custom settings:
+
+```bash
+docker run -p 9000:9000 -e PORT=9000 -e LOG_LEVEL=debug flight-booking-agent
+```
+
 The API docs are available at `http://localhost:8000/docs`.

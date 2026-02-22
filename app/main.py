@@ -1,6 +1,8 @@
 """Flight Booking Agent API."""
 
+import os
 import uuid
+
 from fastapi import FastAPI, HTTPException
 
 from app.models import (
@@ -11,6 +13,10 @@ from app.models import (
     FlightSearchRequest,
 )
 from app.flights import search_flights
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "info")
+HOST = os.getenv("HOST", "0.0.0.0")
+PORT = int(os.getenv("PORT", "8000"))
 
 app = FastAPI(
     title="Flight Booking Agent",
