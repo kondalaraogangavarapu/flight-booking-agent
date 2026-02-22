@@ -1,10 +1,10 @@
 """Flight Booking Agent API."""
 
-import os
 import uuid
 
 from fastapi import FastAPI, HTTPException
 
+from app.config import APP_VERSION
 from app.models import (
     Booking,
     BookingRequest,
@@ -14,14 +14,10 @@ from app.models import (
 )
 from app.flights import search_flights
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "info")
-HOST = os.getenv("HOST", "0.0.0.0")
-PORT = int(os.getenv("PORT", "8000"))
-
 app = FastAPI(
     title="Flight Booking Agent",
     description="A demo flight search and booking API.",
-    version="1.0.0",
+    version=APP_VERSION,
 )
 
 # In-memory booking store
@@ -96,3 +92,10 @@ def cancel_booking(booking_id: str):
         raise HTTPException(status_code=404, detail="Booking not found")
     bookings[booking_id].status = "cancelled"
     return {"detail": "Booking cancelled", "booking_id": booking_id}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    from app.config import HOST, PORT, LOG_LEVEL
+
+    uvicorn.run("app.main:app", host=HOST, port=PORT, log_level=LOG_LEVEL)

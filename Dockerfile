@@ -17,6 +17,7 @@ RUN groupadd --system appuser && useradd --system --gid appuser appuser
 # Copy installed dependencies from builder
 COPY --from=builder /install /usr/local
 
+COPY VERSION .
 COPY app/ ./app/
 
 # Switch to non-root user
@@ -31,4 +32,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host $HOST --port $PORT --log-level $LOG_LEVEL"]
+CMD ["python", "-m", "app.main"]
