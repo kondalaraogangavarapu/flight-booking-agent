@@ -11,3 +11,5 @@ dist
 build
 .mypy_cache
 .pytest_cache
+Dockerfile
+README.md
