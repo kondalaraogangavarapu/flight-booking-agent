@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Copy only requirements first to cache dependency installation
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt \
+    && pip install --no-cache-dir pip-audit \
+    && pip-audit -r requirements.txt || echo "WARN: pip-audit found vulnerabilities (see above)"
 
 # Runtime stage
 FROM python:3.12-slim
@@ -34,6 +36,6 @@ ENV LOG_LEVEL=info
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
 
-CMD ["python", "-m", "app.main"]
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--log-level", "info"]

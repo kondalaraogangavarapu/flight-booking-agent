@@ -43,9 +43,17 @@ docker run -p 9000:9000 -e PORT=9000 -e LOG_LEVEL=debug flight-booking-agent
 
 The API docs are available at `http://localhost:8000/docs`.
 
+### Production Server
+
+The Docker image uses [gunicorn](https://gunicorn.org/) with Uvicorn workers for production-grade serving. To run locally without Docker, you can still use uvicorn directly:
+
+```bash
+uvicorn app.main:app --reload
+```
+
 ## Security
 
-Dependency vulnerabilities are scanned automatically in CI using [pip-audit](https://github.com/pypa/pip-audit). To run locally:
+Dependency vulnerabilities are scanned automatically during the Docker build using [pip-audit](https://github.com/pypa/pip-audit). The build will fail if any known vulnerabilities are found. To run locally:
 
 ```bash
 pip install pip-audit
